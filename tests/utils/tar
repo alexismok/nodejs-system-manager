@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Fake tar: on extract, create a fake node/npm/npx/bin structure at -C target
+target=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -C)
+            target="$2"
+            break
+            ;;
+    esac
+    shift
+done
+
+if [[ -n "$target" ]]; then
+    mkdir -p "${target}/bin"
+    for b in node npm npx; do
+        cat > "${target}/bin/${b}" << EOF
+#!/usr/bin/env bash
+echo "Fake $0 called with: $*"
+EOF
+    done
+    echo "Fake tarball extracted"
+    exit 0
+fi
+echo "Fake failed to extract tarball"
+exit 1

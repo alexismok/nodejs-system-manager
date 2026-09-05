@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+VER="TPL_VER"
+DIR="TPL_DIR/npm"
+mkdir -p "$DIR"
+FILE="${DIR}/${VER}"
+
+NPM_PKG_FULL_REGEX='^((@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*)(@(.+))?$'
+
+regex_escape() {
+    sed 's/[][(){}.^$*+?|\/]/\\&/g' <<< "$1"
+}
+
+case "$*" in
+    *"uninstall"*)
+        # Skip action + '-g' option
+        shift 2
+
+        [[ "$1" != "faildelpkg" ]] || { echo "Failed to remove package '$1'"; exit 1; }
+
+        escaped_pkg_name="$(regex_escape "$1")"
+        [[ ! -f "$FILE" ]] || sed -i -E "/^${escaped_pkg_name}(@.*)?$/d" "$FILE"
+
+        echo "Removed package $1"
+        ;;
+    *"install"*)
+        # Skip action + '-g' and '--json' option
+        shift 3
+
+        result="{}"
+        
+        while [[ $# -gt 0 ]]; do
+            if [[ "$1" =~ ^-+ ]]; then
+                shift
+                continue
+            fi
+
+            if [[ "$1" =~ $NPM_PKG_FULL_REGEX ]]; then
+                package="${BASH_REMATCH[1]}"
+                version="${BASH_REMATCH[4]:-}"
+            else
+                shift
+                continue
+            fi
+
+            if [[ "$package" = "fail" ]]; then
+                echo "FAILED to install package 'fail'" >&2
+                echo '{"error": { "code": "E404", "summary": "Not Found", "detail": "Package does not exist"}}'
+                exit 1
+            fi
+
+            echo "$1" >> "$FILE"
+            result="$(jq \
+                --arg package "$package" \
+                --arg version "${version:-1.0.0}" \
+                '.add += [{
+                        name: $package,
+                        version: $version
+                    }]' <<< "$result"
+            )"
+            shift
+        done
+        echo "$result" | jq
+        ;;
+    *"list"*)
+        # Skip action + '-g' and '--json' option
+        shift 3
+
+        res="$(jq -n '{ name: "lib", dependencies: {} }')"
+        [[ -f "$FILE" ]] || { echo $res; exit 1; }
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            version=""
+            package=""
+            line="${line// /}"
+
+            # Skip empty/comments lines
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^# ]] && continue
+
+            if [[ "$line" =~ $NPM_PKG_FULL_REGEX ]]; then
+                package="${BASH_REMATCH[1]}"
+                version="${BASH_REMATCH[4]:-}"
+            else
+                continue
+            fi
+
+            if [[ $# -gt 0 && " $* " =~ [[:space:]]${package}[[:space:]] ]] || [[ $# -eq 0 ]]; then
+                res="$(jq --arg pkg "$package" --arg ver "${version:-latest}" '.dependencies += {$pkg: {version: $ver}}' <<< "$res")"
+            fi
+        done < "$FILE"
+
+        echo "$res"
+        jq -e '.dependencies | length > 0' >/dev/null <<< "$res"
+        ;;
+esac
