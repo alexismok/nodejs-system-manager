@@ -13,6 +13,7 @@ CONFIG_FILE_ALLOWED_KEYS=(
     NODEJS_ROOT BIN_DIR LOCK_DIR CACHE_DIR
     LOG_LEVEL LOG_COLORS LOG_TIMESTAMP SYSLOG_ENABLED
     CACHE_INDEX_TTL CACHE_INDEX_FILE_SKIPPED DISABLE_HOOKS
+    LOG_FILE
 )
 
 SYSLOG_DEBUG="user.debug"
@@ -65,6 +66,10 @@ init() {
     
     mkdir -p "$NODEJS_ROOT" "$CONFIG_DIR" "$PACKAGES_DIR" "$HOOK_DIR" "$BIN_DIR" "$LOCK_DIR"
     [[ "${CACHE_INDEX_FILE_SKIPPED:-false}" == "true" ]] || mkdir -p "$CACHE_DIR"
+    if [[ -n "${LOG_FILE:-}" ]]; then
+        mkdir -p "$(dirname -- "$LOG_FILE")"
+        touch "$LOG_FILE"
+    fi
     touch "$MANAGED_FILE"
 }
 
@@ -105,6 +110,7 @@ _init_default_config() {
     LOCK_DIR="${LOCK_DIR:-/var/lock/nodejs-system-manager}"
     CACHE_DIR="${CACHE_DIR:-/var/cache/nodejs-system-manager}"
     CACHE_INDEX_TTL="${CACHE_INDEX_TTL:-3600}"
+    LOG_FILE="${LOG_FILE:-}"
 }
 
 _syslog() {
@@ -129,8 +135,6 @@ _log() {
     local color="$3"
     shift 3
 
-    [[ "${QUIET:-}" == "true" ]] && return 0
-
     [[ "$level_num" -ge "${LOG_LEVEL:-1}" ]] || return 0
 
     local timestamp
@@ -145,6 +149,12 @@ _log() {
         color=''
         color_reset=''
     fi
+
+    if [[ -n "${LOG_FILE:-}" ]]; then
+        printf '%s\n' "$msg" >> "$LOG_FILE"
+    fi
+
+    [[ "${QUIET:-}" != "true"  ]] || return 0
 
     if [[ "$level_name" == "ERROR" || "$level_name" == "DEBUG" || "${JSON_OUTPUT:-false}" == "true" ]]; then
         printf '%b%s%b\n' "$color" "$msg" "$color_reset" >&2
@@ -2165,21 +2175,22 @@ EOF
 show_global_options() {
     cat <<EOF
 Global options:
-    --verbose, -v               Enable debug logs
-    --no-timestamp              Hide timestamp from logs output
-    --no-colors                 Disable logs colors
-    --syslog                    Send logs to syslog in addition to console (even if --quiet)
-    --nodejs-root               Change nodejs installation folders (default: /opt/nodejs)
-    --bin-dir                   Change binaries symlink folder (default: /usr/local/bin)
-    --config-dir                Change configuration directory (default: /etc/nodejs-system-manager)
-    --lock-dir                  Change configuration directory (default: /var/lock/nodejs-system-manager)
-    --cache-dir                 Change configuration directory (default: /var/cache/nodejs-system-manager)
-    --skip-index-cache          Disable Node.js version list cache
-    --cache-index-ttl           Disable Node.js version list cache
-    --ignore-hooks              Disable hook loading and execution
-    --quiet, -q                 Disable logs output in console
-    --json                      Return command output as JSON object (Logs are redirected to stderr)
-    --json-compact              Same as --json but in compact instead of pretty-printed
+    --verbose, -v                   Enable debug logs
+    --no-timestamp                  Hide timestamp from logs output
+    --no-colors                     Disable logs colors
+    --syslog                        Send logs to syslog in addition to console (even if --quiet)
+    --log-file <path/file>          Send logs to file in addition to console (even if --quiet)
+    --nodejs-root <path>            Change nodejs installation folders (default: /opt/nodejs)
+    --bin-dir <path>                Change binaries symlink folder (default: /usr/local/bin)
+    --config-dir <path>             Change configuration directory (default: /etc/nodejs-system-manager)
+    --lock-dir <path>               Change configuration directory (default: /var/lock/nodejs-system-manager)
+    --cache-dir <path>              Change configuration directory (default: /var/cache/nodejs-system-manager)
+    --skip-index-cache              Disable Node.js version list cache
+    --cache-index-ttl <seconds>     Disable Node.js version list cache
+    --ignore-hooks                  Disable hook loading and execution
+    --quiet, -q                     Disable logs output in console
+    --json                          Return command output as JSON object (Logs are redirected to stderr)
+    --json-compact                  Same as --json but in compact instead of pretty-printed
 EOF
 }
 
@@ -2378,6 +2389,12 @@ parse_options() {
                 JSON_OUTPUT_CMD="${JSON_OUTPUT_CMD} -M"
                 shift
                 ;;
+            --log-file)
+                [[ "$#" -ge 2 ]] || die "--log-file requires an argument"
+                ! _startswith "$2" "-" || die "--log-file requires a valid path"
+                LOG_FILE="$2"
+                shift 2
+                ;;
             --nodejs-root)
                 [[ "$#" -ge 2 ]] || die "--nodejs-root requires an argument"
                 ! _startswith "$2" "-" || die "--nodejs-root requires a valid path"
@@ -2493,7 +2510,7 @@ dump_config() {
         PACKAGES_DIR HOOK_DIR
         LOG_LEVEL LOG_COLORS LOG_TIMESTAMP SYSLOG_ENABLED
         CACHE_INDEX_TTL CACHE_INDEX_FILE_SKIPPED DISABLE_HOOKS
-        CACHE_INDEX_FILE LOCK_FILE MANAGED_FILE
+        CACHE_INDEX_FILE LOCK_FILE MANAGED_FILE LOG_FILE
     )
 
     local var
@@ -2526,6 +2543,8 @@ main() {
     done
 
     init
+
+    log_debug "Running action: $ACTION_NAME"
 
     [[ "${DISABLE_HOOKS:-}" = "true" ]] || load_hooks
 

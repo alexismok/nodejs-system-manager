@@ -163,6 +163,7 @@ These apply to every action; place them anywhere on the command line after the a
 | `--no-timestamp` | Omit timestamps from log lines | LOG_TIMESTAMP | Yes |
 | `--no-colors` | Disable ANSI color in log output | LOG_COLOR | Yes |
 | `--syslog` | Also send logs to syslog (even with `--quiet`) | SYSLOG_ENABLED | Yes |
+| `--log-file <path/file>` | Also send log to file (even with `--quiet`) | LOG_FILE | Yes |
 | `--json` | Print the action's result as JSON on stdout; all logs move to stderr |||
 | `--json-compact` | Same as `--json`, but single-line/compact JSON |||
 | `--nodejs-root <path>` | Override `NODEJS_ROOT` (default `/opt/nodejs`) | NODEJS_ROOT | Yes |
