@@ -156,26 +156,30 @@ Run `<action> --help` for that action's specific options and parameters (e.g. `n
 
 These apply to every action; place them anywhere on the command line after the action.
 
-| Option | Effect |
-|---|---|
-| `--verbose`, `-v` | Enable debug-level logs |
-| `--quiet`, `-q` | Suppress console log output entirely |
-| `--no-timestamp` | Omit timestamps from log lines |
-| `--no-colors` | Disable ANSI color in log output |
-| `--syslog` | Also send logs to syslog (even with `--quiet`) |
-| `--json` | Print the action's result as JSON on stdout; all logs move to stderr |
-| `--json-compact` | Same as `--json`, but single-line/compact JSON |
-| `--nodejs-root <path>` | Override `NODEJS_ROOT` (default `/opt/nodejs`) |
-| `--bin-dir <path>` | Override `BIN_DIR` (default `/usr/local/bin`) |
-| `--config-dir <path>` | Override `CONFIG_DIR` (default `/etc/nodejs-system-manager`) |
-| `--lock-dir <path>` | Override `LOCK_DIR` (default `/var/lock/nodejs-system-manager`) |
-| `--cache-dir <path>` | Override `CACHE_DIR` (default `/var/cache/nodejs-system-manager`) |
-| `--skip-index-cache` | Don't read or write the cached Node.js release index; always fetch fresh |
-| `--cache-index-ttl` | Cached Node.js release index cache duration (default 3600s) |
-| `--ignore-hooks` | Don't load or run any hooks for this invocation |
-| `--force`, `-f` | Action-specific: reinstall / reinstall-and-relink (see each action's `--help`) |
+| Option | Effect | ENV VAR | CONFIG FILE |
+|---|---|---|---|
+| `--verbose`, `-v` | Enable debug-level logs |||
+| `--quiet`, `-q` | Suppress console log output entirely |||
+| `--no-timestamp` | Omit timestamps from log lines | LOG_TIMESTAMP | Yes |
+| `--no-colors` | Disable ANSI color in log output | LOG_COLOR | Yes |
+| `--syslog` | Also send logs to syslog (even with `--quiet`) | SYSLOG_ENABLED | Yes |
+| `--json` | Print the action's result as JSON on stdout; all logs move to stderr |||
+| `--json-compact` | Same as `--json`, but single-line/compact JSON |||
+| `--nodejs-root <path>` | Override `NODEJS_ROOT` (default `/opt/nodejs`) | NODEJS_ROOT | Yes |
+| `--bin-dir <path>` | Override `BIN_DIR` (default `/usr/local/bin`) | BIN_DIR | Yes |
+| `--config-dir <path>` | Override `CONFIG_DIR` (default `/etc/nodejs-system-manager`) | CONFIG_DIR | No |
+| `--lock-dir <path>` | Override `LOCK_DIR` (default `/var/lock/nodejs-system-manager`) | LOCK_DIR | Yes |
+| `--cache-dir <path>` | Override `CACHE_DIR` (default `/var/cache/nodejs-system-manager`) | CACHE_DIR | Yes |
+| `--skip-index-cache` | Don't read or write the cached Node.js release index; always fetch fresh | CACHE_INDEX_FILE_SKIPPED | Yes |
+| `--cache-index-ttl <seconds>` | Cached Node.js release index cache duration (default 3600s) | CACHE_INDEX_TTL | Yes |
+| `--ignore-hooks` | Don't load or run any hooks for this invocation | DISABLE_HOOKS | Yes |
+| `--force`, `-f` | Action-specific: reinstall / reinstall-and-relink (see each action's `--help`) |||
 
-Every directory option is also settable via environment variable of the same name (e.g. `NODEJS_ROOT`, `BIN_DIR`, `CONFIG_DIR`, `LOG_LEVEL`, `JSON_OUTPUT`, `JSON_OUTPUT_COMPACT`); CLI flags take priority when both are set.
+Options with an `ENV VAR` can be defined from environnement variable.  
+Options with `CONFIG FILE` to `Yes` can be defined in `CONFIG_DIR/config`, one variable per line with the following syntax: `VARNAME=varvalue`.  
+Options without expected value (e.g. --no-timestamp) need `true` or `false` as value in environnement variable or config file.
+
+Here is the configuration priority : CLI Options > environment variables > configuration file > defaults value.
 
 ## Configuration & directory layout
 
