@@ -2504,19 +2504,34 @@ bootstrap_config() {
     done
 }
 
-dump_config() {
-    local vars=(
-        CONFIG_DIR CONFIG_FILE NODEJS_ROOT LOCK_DIR BIN_DIR CACHE_DIR
-        PACKAGES_DIR HOOK_DIR
-        LOG_LEVEL LOG_COLORS LOG_TIMESTAMP SYSLOG_ENABLED
-        CACHE_INDEX_TTL CACHE_INDEX_FILE_SKIPPED DISABLE_HOOKS
-        CACHE_INDEX_FILE LOCK_FILE MANAGED_FILE LOG_FILE
-    )
+CONFIG_VARS=(
+    CONFIG_DIR CONFIG_FILE NODEJS_ROOT LOCK_DIR BIN_DIR CACHE_DIR
+    PACKAGES_DIR HOOK_DIR
+    LOG_LEVEL LOG_COLORS LOG_TIMESTAMP SYSLOG_ENABLED
+    CACHE_INDEX_TTL CACHE_INDEX_FILE_SKIPPED DISABLE_HOOKS
+    CACHE_INDEX_FILE LOCK_FILE MANAGED_FILE LOG_FILE
+)
 
+dump_config() {
     local var
     while IFS= read -r var; do
         printf '%s=%s\n' "$var" "${!var:-}"
-    done < <(printf '%s\n' "${vars[@]}" | sort)
+    done < <(printf '%s\n' "${CONFIG_VARS[@]}" | sort)
+}
+
+log_config() {
+    local json='{}'
+
+    local var
+    for var in "${CONFIG_VARS[@]}"; do
+        json="$(
+            jq -c --arg k "$var" --arg v "${!var:-}" \
+            '. + { ($k): $v }' \
+            <<< "$json"
+        )"
+    done
+
+    log_debug "Configuration: $json"
 }
 
 main() {
@@ -2543,6 +2558,8 @@ main() {
     done
 
     init
+
+    log_config
 
     log_debug "Running action: $ACTION_NAME"
 
