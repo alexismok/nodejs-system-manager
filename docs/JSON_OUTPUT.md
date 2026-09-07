@@ -136,7 +136,7 @@ Aggregate codes (top-level result when updating more than one version, or the si
 | `INVALID_PACKAGE_NAME` | error | false | Doesn't match npm package-name syntax |
 | `VERSION_NOT_INSTALLED` | error | false | Target version isn't installed (`default` is exempt from this check) |
 | `VERSION_NOT_MANAGED` | error | false | Target version isn't managed |
-| `PACKAGE_ALREADY_INSTALLED` | success | false | Already installed at the requested spec and already tracked; use `--force` |
+| `PACKAGE_ALREADY_INSTALLED` | success | false | Already installed at the requested spec and already tracked |
 | `PACKAGE_TARGET_MISMATCH_WITH_LINKED_VERSION` | error | false | A linked version (see [Version hierarchy & linked versions](../README.md#version-hierarchy--linked-versions)) tracks this package name with a different version spec; `data.conflicts[]` lists which versions and what they track. |
 | `PACKAGE_ADDED_AS_DEFAULT` | success | true | Added to the shared `default` package set (no install performed — `default` isn't a real version) |
 | `PACKAGE_TRACKED` | success | true | Already installed outside of tracking; now added to the tracking file (no reinstall performed) |
