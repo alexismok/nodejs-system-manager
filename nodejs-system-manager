@@ -8,7 +8,25 @@ set -euo pipefail
 PROJECT_NAME=nodejs-system-manager
 VERSION=1.0.0
 
-CONFIG_DIR="${CONFIG_DIR:-/etc/nodejs-system-manager}"
+declare -A DEFAULT_CONFIG=(
+    [CONFIG_DIR]=/etc/nodejs-system-manager
+    [NODEJS_ROOT]=/opt/nodejs
+    [BIN_DIR]=/usr/local/bin
+    [LOCK_DIR]=/var/lock/nodejs-system-manager
+    [CACHE_DIR]=/var/cache/nodejs-system-manager
+    [LOG_LEVEL]=1
+    [LOG_COLORS]="true"
+    [LOG_TIMESTAMP]="true"
+    [SYSLOG_ENABLED]="false"
+    [CACHE_INDEX_TTL]=3600
+    [CACHE_INDEX_FILE_SKIPPED]="false"
+    [DISABLE_HOOKS]="false"
+    [LOG_FILE]=""
+    [JSON_OUTPUT]="false"
+    [JSON_OUTPUT_COMPACT]="false"
+)
+
+CONFIG_DIR="${CONFIG_DIR:-${DEFAULT_CONFIG[CONFIG_DIR]:-}}"
 CONFIG_FILE_ALLOWED_KEYS=(
     NODEJS_ROOT BIN_DIR LOCK_DIR CACHE_DIR
     LOG_LEVEL LOG_COLORS LOG_TIMESTAMP SYSLOG_ENABLED
@@ -21,7 +39,7 @@ SYSLOG_INFO="user.info"
 SYSLOG_WARNING="user.warning"
 SYSLOG_ERROR="user.error"
 
-if [[ "${JSON_OUTPUT_COMPACT:-false}" = "true" ]]; then
+if [[ "${JSON_OUTPUT_COMPACT:-${DEFAULT_CONFIG[JSON_OUTPUT_COMPACT]:-}}" = "true" ]]; then
     JSON_OUTPUT_CMD="jq -c"
 else
     JSON_OUTPUT_CMD="jq"
@@ -65,8 +83,8 @@ init() {
     CACHE_INDEX_FILE="${CACHE_DIR}/nodejs-index.json"
     
     mkdir -p "$NODEJS_ROOT" "$CONFIG_DIR" "$PACKAGES_DIR" "$HOOK_DIR" "$BIN_DIR" "$LOCK_DIR"
-    [[ "${CACHE_INDEX_FILE_SKIPPED:-false}" == "true" ]] || mkdir -p "$CACHE_DIR"
-    if [[ -n "${LOG_FILE:-}" ]]; then
+    [[ "$CACHE_INDEX_FILE_SKIPPED" == "true" ]] || mkdir -p "$CACHE_DIR"
+    if [[ -n "${LOG_FILE:-${DEFAULT_CONFIG[LOG_FILE]:-}}" ]]; then
         mkdir -p "$(dirname -- "$LOG_FILE")"
         touch "$LOG_FILE"
     fi
@@ -103,18 +121,14 @@ _load_config_file() {
 }
 
 _init_default_config() {
-    NODEJS_ROOT="${NODEJS_ROOT:-/opt/nodejs}"
-    BIN_DIR="${BIN_DIR:-/usr/local/bin}"
-    LOG_LEVEL="${LOG_LEVEL:-1}" # 0=DEBUG, 1=INFO, 2=WARN, 3=ERROR
-    JSON_OUTPUT="${JSON_OUTPUT:-false}"
-    LOCK_DIR="${LOCK_DIR:-/var/lock/nodejs-system-manager}"
-    CACHE_DIR="${CACHE_DIR:-/var/cache/nodejs-system-manager}"
-    CACHE_INDEX_TTL="${CACHE_INDEX_TTL:-3600}"
-    LOG_FILE="${LOG_FILE:-}"
+    local var
+    for var in "${!DEFAULT_CONFIG[@]}"; do
+        printf -v "${var}" '%s' "${!var:-${DEFAULT_CONFIG["$var"]:-}}"
+    done
 }
 
 _syslog() {
-    [[ "${SYSLOG_ENABLED:-false}" == "true" ]] || return 0
+    [[ "${SYSLOG_ENABLED:-${DEFAULT_CONFIG[SYSLOG_ENABLED]:-}}" == "true" ]] || return 0
 
     local log_priority="$1"
     shift
@@ -135,28 +149,28 @@ _log() {
     local color="$3"
     shift 3
 
-    [[ "$level_num" -ge "${LOG_LEVEL:-1}" ]] || return 0
+    [[ "$level_num" -ge "${LOG_LEVEL:-${DEFAULT_CONFIG[LOG_LEVEL]:-}}" ]] || return 0
 
     local timestamp
     timestamp=$(date +'%Y-%m-%dT%H:%M:%S%:z')
 
     local msg=""
-    [[ "${LOG_TIMESTAMP:-true}" == "false" ]] || msg="[$timestamp] "
+    [[ "${LOG_TIMESTAMP:-${DEFAULT_CONFIG[LOG_TIMESTAMP]:-}}" == "false" ]] || msg="[$timestamp] "
     msg="${msg}[$level_name] $*"
 
     local color_reset="$C_RESET"
-    if [[ "${LOG_COLORS:-true}" == "false" ]]; then
+    if [[ "${LOG_COLORS:-${DEFAULT_CONFIG[LOG_COLORS]:-}}" == "false" ]]; then
         color=''
         color_reset=''
     fi
 
-    if [[ -n "${LOG_FILE:-}" ]]; then
+    if [[ -n "${LOG_FILE:-${DEFAULT_CONFIG[LOG_FILE]:-}}" ]]; then
         printf '%s\n' "$msg" >> "$LOG_FILE"
     fi
 
     [[ "${QUIET:-}" != "true"  ]] || return 0
 
-    if [[ "$level_name" == "ERROR" || "$level_name" == "DEBUG" || "${JSON_OUTPUT:-false}" == "true" ]]; then
+    if [[ "$level_name" == "ERROR" || "$level_name" == "DEBUG" || "${JSON_OUTPUT:-${DEFAULT_CONFIG[JSON_OUTPUT]:-}}" == "true" ]]; then
         printf '%b%s%b\n' "$color" "$msg" "$color_reset" >&2
     else
         printf '%b%s%b\n' "$color" "$msg" "$color_reset"
@@ -177,7 +191,7 @@ log_redirect() {
 }
 die() {
     log_error "$@"
-    if [[ "${JSON_OUTPUT:-false}" = "true" ]]; then
+    if [[ "${JSON_OUTPUT:-${DEFAULT_CONFIG[JSON_OUTPUT]:-}}" = "true" ]]; then
         $JSON_OUTPUT_CMD -n --arg msg "$*" '{ status: "error", changed: true, code: "CRITICAL_ERROR", msg: $msg }'
     fi
     exit 1
@@ -205,7 +219,7 @@ log_json_msg() {
 }
 
 print_json_result() {
-    if [[ "${JSON_OUTPUT:-false}" = "true" ]]; then
+    if [[ "${JSON_OUTPUT:-${DEFAULT_CONFIG[JSON_OUTPUT]:-}}" = "true" ]]; then
         $JSON_OUTPUT_CMD <<< "$*"
     fi
 }
@@ -420,7 +434,7 @@ get_nodejs_index() {
     if [[ -n "${CACHE_INDEX_JSON:-}" ]]; then
         printf "%s\n" "$CACHE_INDEX_JSON"
         return
-    elif [[ "${CACHE_INDEX_FILE_SKIPPED:-false}" != "true" && -f "$CACHE_INDEX_FILE" ]]; then
+    elif [[ "$CACHE_INDEX_FILE_SKIPPED" != "true" && -f "$CACHE_INDEX_FILE" ]]; then
         local now mtime
 
         now="$(date +%s)"
@@ -433,7 +447,7 @@ get_nodejs_index() {
     fi
 
     CACHE_INDEX_JSON="$(curl -fsSL https://nodejs.org/dist/index.json)"
-    if [[ "${CACHE_INDEX_FILE_SKIPPED:-false}" != "true" ]]; then
+    if [[ "$CACHE_INDEX_FILE_SKIPPED" != "true" ]]; then
         local tmp
         tmp="$(mktemp "${CACHE_INDEX_FILE}.XXXXXX")"
         printf '%s\n' "$CACHE_INDEX_JSON" > "$tmp"
@@ -1258,7 +1272,7 @@ cmd_install() {
 
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_install
+        [[ "$JSON_OUTPUT" == "true" ]] || help_install
         return 1
     fi
 
@@ -1461,7 +1475,7 @@ cmd_remove() {
     
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_install
+        [[ "$JSON_OUTPUT" == "true" ]] || help_install
         return 1
     fi
     
@@ -1662,7 +1676,7 @@ cmd_manage() {
 
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_manage
+        [[ "$JSON_OUTPUT" == "true" ]] || help_manage
         return 1
     fi
     
@@ -1701,7 +1715,7 @@ cmd_unmanage() {
     
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_unmanage
+        [[ "$JSON_OUTPUT" == "true" ]] || help_unmanage
         return 1
     fi
 
@@ -1740,13 +1754,13 @@ cmd_pkg_add() {
 
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" == "true" ]] || help_pkg_add
+        [[ "$JSON_OUTPUT" == "true" ]] || help_pkg_add
         return 1
     fi
 
     if [[ -z "$package" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing package", code: "MISSING_PACKAGE"}')"
-        [[ "${JSON_OUTPUT:-}" == "true" ]] || help_pkg_add
+        [[ "$JSON_OUTPUT" == "true" ]] || help_pkg_add
         return 1
     fi
 
@@ -1911,13 +1925,13 @@ cmd_pkg_del() {
 
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_pkg_add
+        [[ "$JSON_OUTPUT" == "true" ]] || help_pkg_add
         return 1
     fi
 
     if [[ -z "$package" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing package", code: "MISSING_PACKAGE"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_pkg_add
+        [[ "$JSON_OUTPUT" == "true" ]] || help_pkg_add
         return 1
     fi
 
@@ -2048,7 +2062,7 @@ cmd_pkg_list() {
 
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
-        [[ "${JSON_OUTPUT:-}" = "true" ]] || help_pkg_list
+        [[ "$JSON_OUTPUT" == "true" ]] || help_pkg_list
         return 1
     fi
 
@@ -2070,7 +2084,7 @@ cmd_pkg_list() {
     local packages
     packages="$(get_packages_json "$version" true)"
 
-    if [[ "${JSON_OUTPUT:-false}" = "true" ]]; then
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
         print_json_result "$packages"
     else
         dump_packages_json "$packages"
@@ -2117,7 +2131,7 @@ cmd_list() {
         fi
     done
 
-    if [[ "${JSON_OUTPUT:-false}" = "true" ]]; then
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
         [[ "${IGNORE_MANAGED:-false}" != "true" ]] || managed_json='[]'
         [[ "${IGNORE_UNMANAGED:-false}" != "true" ]] || unmanaged_json='[]'
         $JSON_OUTPUT_CMD -n --argjson managed "${managed_json:-[]}" --argjson unmanaged "${unmanaged_json:-[]}" \
@@ -2497,25 +2511,24 @@ CONFIG_VARS=(
 )
 
 dump_config() {
-    local var
-    while IFS= read -r var; do
-        printf '%s=%s\n' "$var" "${!var:-}"
-    done < <(printf '%s\n' "${CONFIG_VARS[@]}" | sort)
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        print_json_result "$(dump_config_json)"
+    else
+        local var
+        while IFS= read -r var; do
+            printf '%s=%s\n' "$var" "${!var:-}"
+        done < <(printf '%s\n' "${CONFIG_VARS[@]}" | sort)
+    fi
 }
 
-log_config() {
-    local json='{}'
-
+dump_config_json() {
     local var
+    local args=()
     for var in "${CONFIG_VARS[@]}"; do
-        json="$(
-            jq -c --arg k "$var" --arg v "${!var:-}" \
-            '. + { ($k): $v }' \
-            <<< "$json"
-        )"
-    done
+        args+=( --arg "$var" "${!var:-}" )
+    done 
 
-    log_debug "Configuration: $json"
+    jq -c -n "${args[@]}" '$ARGS.named'
 }
 
 main() {
@@ -2543,11 +2556,11 @@ main() {
 
     init
 
-    log_config
+    log_debug "Configuration: $(dump_config_json)"
 
     log_debug "Running action: $ACTION_NAME"
 
-    [[ "${DISABLE_HOOKS:-}" = "true" ]] || load_hooks
+    [[ "${DISABLE_HOOKS:-${DEFAULT_CONFIG[DISABLE_HOOKS]:-}}" = "true" ]] || load_hooks
 
     case "$ACTION_NAME" in
         install)

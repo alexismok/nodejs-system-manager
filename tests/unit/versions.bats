@@ -49,7 +49,7 @@ setup() {
     [[ ! -f "${CACHE_DIR}/nodejs-index.json" ]]
     [[ "$output" == "24.1.1" ]]
 
-    unset CACHE_INDEX_FILE_SKIPPED
+    export CACHE_INDEX_FILE_SKIPPED=""
     run resolve_version 24
     run resolve_version 24
     [[ -f "${CACHE_DIR}/nodejs-index.json" ]]
