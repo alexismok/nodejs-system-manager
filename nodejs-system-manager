@@ -475,8 +475,7 @@ manage_version() {
 
     local target_path="${NODEJS_ROOT}/${version}"
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" --arg target_path "$target_path" '{data: {version: $version, target_path: $target_path}}')"
+    __out="$(jq -n --arg version "$version" --arg target_path "$target_path" '{data: {version: $version, target_path: $target_path}}')"
 
     local pre_hook_rc=0
     run_pre_hook "pre_manage_version" "Managing version '$version'" __out || pre_hook_rc=$?
@@ -525,7 +524,7 @@ EOF
 
     log_success "Successfully managed version: ${version}"
 
-    __out="$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: true, msg: "Successfully managed version", code: "VERSION_MANAGED"} * $default')" 
+    __out="$(jq '{status: "success", changed: true, msg: "Successfully managed version", code: "VERSION_MANAGED"} * .' <<< "$__out")" 
 
     local post_hook_rc=0
     run_post_hook post_manage_version __out || post_hook_rc=$?
@@ -537,8 +536,7 @@ unmanage_version() {
     local version="$1"
     local -n __out="$2"
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local pre_hook_rc=0
     run_pre_hook "pre_unmanage_version" "Unmanaging version '$version'" __out || pre_hook_rc=$?
@@ -572,7 +570,7 @@ unmanage_version() {
 
     log_success "Successfully unmanaged version: ${version}"
     
-    __out="$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: true, msg: "Successfully unmanaged version", code: "VERSION_UNMANAGED"} * $default')" 
+    __out="$(jq '{status: "success", changed: true, msg: "Successfully unmanaged version", code: "VERSION_UNMANAGED"} * .' <<< "$__out")" 
 
     local post_hook_rc=0
     run_post_hook "post_unmanage_version" __out || post_hook_rc=$?
@@ -587,8 +585,7 @@ install_version() {
 
     local dir="${NODEJS_ROOT}/${full}"
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$full" --arg force "${FORCE:-false}" --arg dir "$dir" '{data: {version: $version, force: $force, installation_folder: $dir}}')"
+    __out="$(jq -n --arg version "$full" --arg force "${FORCE:-false}" --arg dir "$dir" '{data: {version: $version, force: $force, installation_folder: $dir}}')"
 
     local pre_hook_rc=0
     run_pre_hook "pre_install_version" "Version '$full' installation" __out || pre_hook_rc=$?
@@ -596,10 +593,10 @@ install_version() {
     [[ "$HOOK_SKIP" != "true" ]] || return 0
 
     if [[ "${FORCE:-}" != "true" && -x "${dir}/bin/node" ]]; then
-        __out="$(jq -n \
-            --argjson default "$default_json_obj" \
+        __out="$(jq \
             --arg msg "Version '$full' already installed, use '--force' to reinstall" \
-            '{status: "success", changed: false, msg: $msg, code: "VERSION_ALREADY_INSTALLED"} * $default'
+            '{status: "success", changed: false, msg: $msg, code: "VERSION_ALREADY_INSTALLED"} * .' \
+            <<< "$__out"
         )"
         log_json_msg "$__out"
         return 0
@@ -612,12 +609,12 @@ install_version() {
         x86_64) arch=x64 ;;
         aarch64|arm64) arch=arm64 ;;
         *) 
-            __out="$(jq -n --argjson default "$default_json_obj" --arg arch "$current_arch" '{status: "error", changed: false, msg: "Unsupported architecture: \($arch)", code: "UNSUPPORTED_ARCH"} * $default')" 
+            __out="$(jq --arg arch "$current_arch" '{status: "error", changed: false, msg: "Unsupported architecture: \($arch)", code: "UNSUPPORTED_ARCH"} * .' <<< "$__out")" 
             log_json_msg "$__out"
             return 1
             ;;
     esac
-    default_json_obj="$(jq --arg arch "$arch" '. * { data: { arch: $arch }}' <<< "$default_json_obj")"
+    __out="$(jq --arg arch "$arch" '. * { data: { arch: $arch }}' <<< "$__out")"
 
     log_info "Installing Node.js $full (linux-$arch) ..."
     local dist="node-v${full}-linux-${arch}"
@@ -658,12 +655,12 @@ install_version() {
 
     if [[ "$rc" -ne 0 ]]; then
         case "$rc" in
-            10) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Failed to download Node.js tarball", code: "TARBALL_DOWNLOAD_FAILED"} * $default')"  ;;
-            11) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Failed to download SHASUMS256.txt", code: "SHASUMS_DOWNLOAD_FAILED"} * $default')" ;;
-            12) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Checksum verification failed", code: "INVALID_CHECKSUM"} * $default')" ;;
-            13) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Failed to create Node.js folder", code: "FOLDER_CREATION_FAILED"} * $default')" ;;
-            14) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Failed to extract Node.js tarball", code: "TARBALL_EXTRACT_FAILED"} * $default')" ;;
-            *) __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Unknown error", code: "UNKNOWN_ERROR"} * $default')" ;;
+            10) __out="$(jq '{status: "error", changed: false, msg: "Failed to download Node.js tarball", code: "TARBALL_DOWNLOAD_FAILED"} * .' <<< "$__out")" ;;
+            11) __out="$(jq '{status: "error", changed: false, msg: "Failed to download SHASUMS256.txt", code: "SHASUMS_DOWNLOAD_FAILED"} * .' <<< "$__out")" ;;
+            12) __out="$(jq '{status: "error", changed: false, msg: "Checksum verification failed", code: "INVALID_CHECKSUM"} * .' <<< "$__out")" ;;
+            13) __out="$(jq '{status: "error", changed: false, msg: "Failed to create Node.js folder", code: "FOLDER_CREATION_FAILED"} * .' <<< "$__out")" ;;
+            14) __out="$(jq '{status: "error", changed: false, msg: "Failed to extract Node.js tarball", code: "TARBALL_EXTRACT_FAILED"} * .' <<< "$__out")" ;;
+            *) __out="$(jq '{status: "error", changed: false, msg: "Unknown error", code: "UNKNOWN_ERROR"} * .' <<< "$__out")" ;;
         esac
         log_json_msg "$__out"
         return 1
@@ -677,7 +674,7 @@ install_version() {
 
     log_success "Successfully installed Node.js version: $full"
     
-    __out="$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: true, msg: "Node.js version installed", code: "VERSION_INSTALLED"} * $default')" 
+    __out="$(jq '{status: "success", changed: true, msg: "Node.js version installed", code: "VERSION_INSTALLED"} * .' <<< "$__out")" 
 
     local post_hook_rc=0
     run_post_hook "post_install_version" __out || post_hook_rc=$?
@@ -697,11 +694,10 @@ update_version() {
     current_full="$(basename "$(readlink -f "$link")")"
     local previous_versions=()
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     if [[ ! -d "${NODEJS_ROOT}/${version}" && ! -L "${NODEJS_ROOT}/${version}" ]]; then
-        __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Version not installed: \($default.data.version)", code: "VERSION_NOT_INSTALLED"} * $default')" 
+        __out="$(jq '{status: "error", changed: false, msg: "Version not installed: \(.data.version)", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")" 
         log_json_msg "$__out"
         return 1
     fi
@@ -715,7 +711,7 @@ update_version() {
 
     local latest_full
     if ! latest_full="$(resolve_version "$version")" || [[ -z "$latest_full" ]]; then
-        __out="$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "No published Node.js release match: \($version)", code: "VERSION_NOT_AVAILABLE"} * $default')"
+        __out="$(jq '{status: "error", changed: false, msg: "No published Node.js release match: \(.data.version)", code: "VERSION_NOT_AVAILABLE"} * .' <<< "$__out")"
         return 1
     fi
     log_info "Resolved version: $version -> $latest_full"
@@ -920,9 +916,6 @@ load_packages() {
 
     reset_packages
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
-
     [[ "$version" == "default" ]] || read_existing_packages "$version"
     
     read_package_file "${PACKAGES_DIR}/default" "default"
@@ -1026,8 +1019,7 @@ install_packages() {
     local version="$1"
     local -n __out="$2"
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local pre_hook_rc=0
     run_pre_hook "pre_install_packages" "Package installation for version '$version'" __out || pre_hook_rc=$?
@@ -1170,46 +1162,43 @@ install_packages() {
         ' <<< "$npm_result"
     )"
 
-    default_json_obj="$(jq -n --argjson npm_result "$npm_result" --argjson default "$default_json_obj" '$default * {data: $npm_result}')"
+    __out="$(jq --argjson npm_result "$npm_result" '. * {data: $npm_result}' <<< "$__out")"
 
     if [[ "${#failed_pkgs[@]}" -gt 0 && "${#failed_pkgs[@]}" -eq "${#PACKAGES_VERSION_POLICY[@]}" ]]; then
          log_error "Packages installation failed for version: $version, see logs for details"
-        __out="$(jq -n \
-            --argjson default "$default_json_obj" \
+        __out="$(jq \
             '{
                 status: "error",
                 changed: false,
                 code: "PACKAGES_INSTALLATION_FAILED",
-                msg: "Packages installation failed"
-            } * $default'
+                msg: "Packages installation failed",
+            } * .' <<< "$__out"
         )"
         return 1
     else
         local tmp_res=0
         if [[ "${#failed_pkgs[@]}" -eq 0 ]]; then
             log_success "Successfully installed packages for version: $version"
-            __out="$(jq -n \
-                --argjson default "$default_json_obj" \
+            __out="$(jq \
                 '{
                     status: "success",
-                    changed: ($default.data.packages_changed or $default.data.dependencies_changed),
-                } * $default
+                    changed: (.data.packages_changed or .data.dependencies_changed),
+                } * .
                 |
                 .code = (if .changed then "PACKAGES_INSTALLED" elif .data.packages == [] then "NO_PACKAGE_TO_INSTALL" else "PACKAGES_UP_TO_DATE" end)
                 |
                 .msg = (if .changed then "Successfully installed packages" elif .data.packages == [] then "No package to install" else "Packages are already up to date" end)
-                '
+                ' <<< "$__out"
             )"
         else
             log_error "Some packages installation failed for version: $version, see logs for details"
-            __out="$(jq -n \
-                --argjson default "$default_json_obj" \
+            __out="$(jq \
                 '{
                     status: "error",
                     changed: true,
                     code: "SOME_PACKAGES_INSTALLATION_FAILED",
-                    msg: "Some packages installation failed"
-                } * $default'
+                    msg: "Some packages installation failed",
+                } * .' <<< "$__out"
             )"
             tmp_res=1
         fi
@@ -1278,20 +1267,20 @@ cmd_install() {
         return 1
     fi
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local dots="${version//[^.]/}"
     dots="${#dots}"
 
     if [[ "${FORCE:-}" != "true" && -x "${NODEJS_ROOT}/${version}/bin/node" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Version already installed, use --force to reinstall", code: "VERSION_ALREADY_INSTALLED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Version already installed, use --force to reinstall", code: "VERSION_ALREADY_INSTALLED"} * .' <<< "$__out")" 
         return 0
     fi
 
     local full
     if ! full="$(resolve_version "$version")" || [[ -z "$full" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "No published Node.js release match: \($default.data.version)", code: "VERSION_NOT_AVAILABLE"} * $default')"
+        print_result "$(jq '{status: "error", changed: false, msg: "No published Node.js release match: \(.data.version)", code: "VERSION_NOT_AVAILABLE"} * .' <<< "$__out")"
         return 1
     fi
     local major="${full%%.*}"
@@ -1335,8 +1324,7 @@ cmd_install() {
     
     # Do not run below logic if installation was not made in this run.
     if ! jq -e '.code == "VERSION_INSTALLED"' <<< "${install_version_result:-"{}"}" >/dev/null; then
-        print_json_result "$(jq -n \
-            --argjson default "$default_json_obj" \
+        print_json_result "$(jq \
             --argjson install_version_result "$install_version_result" \
             --argjson manage_version_result "$manage_version_result" \
             '{
@@ -1350,7 +1338,7 @@ cmd_install() {
                         manage_version: $manage_version_result
                     }
                 }
-            } * $default'
+            }' <<< "$__out"
         )"
         return 0
     fi
@@ -1470,7 +1458,6 @@ cmd_update() {
 
 cmd_remove() {
     local version="${1:-}"
-    local __out
     
     if [[ -z "$version" ]]; then
         print_result "$(jq -n '{status: "error", changed: false, msg: "Missing version number", code: "MISSING_VERSION"}')"
@@ -1478,12 +1465,12 @@ cmd_remove() {
         return 1
     fi
     
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local path="${NODEJS_ROOT}/${version}"
     if [[ ! -d "$path" && ! -L "$path" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")" 
         return 0
     fi
 
@@ -1606,15 +1593,18 @@ cmd_remove() {
         )
     fi
 
-    default_json_obj="$(jq \
+    __out="$(jq \
         --argjson removed "$removed_json" \
         --argjson retained "$retained_json" \
         '
             . * {
-                    removed: $removed,
-                    retained: $retained
+                    data: {
+                        removed: $removed,
+                        retained: $retained
+                    }
                 }
-        ' <<< "$default_json_obj")"
+        ' <<< "$__out"
+    )"
 
     if [[ " ${removed[*]} " =~ [[:space:]]${version}[[:space:]] ]]; then
         local unmanage_version_result
@@ -1625,38 +1615,36 @@ cmd_remove() {
     fi
 
     if [[ -n "$error_code" ]]; then
-        print_result "$(jq -n \
+        print_result "$(jq \
             --arg code "$error_code" \
             --arg message "$error_message" \
             --argjson changed "$changed" \
-            --argjson default "$default_json_obj" \
             '{
                 status: "error",
                 changed: $changed,
                 code: $code,
                 msg: $message,
-            } * $default')"
+            } * .' <<< "$__out"
+        )"
         return 1
     elif [[ "${#retained[@]}" -gt 0 ]]; then
-        __out="$(jq -n \
-            --arg version "$version" \
-            --argjson default "$default_json_obj" \
+        __out="$(jq \
             '{
                 status: "warning",
                 changed: true,
                 code: "VERSION_PARTIALLY_REMOVED",
-                msg: "Version \($version) removed, but some versions were retained",
-            } * $default')"
+                msg: "Version \(.data.version) removed, but some versions were retained",
+            } * .' <<< "$__out"
+        )"
     else
-        __out="$(jq -n \
-            --arg version "$version" \
-            --argjson default "$default_json_obj" \
+        __out="$(jq \
             '{
                 status: "success",
                 changed: true,
                 code: "VERSION_REMOVED",
-                msg: "Successfully removed version: \($version)",
-            } * $default')"
+                msg: "Successfully removed version: \(.data.version)",
+            } * .' <<< "$__out"
+        )"
     fi
 
     local post_hook_rc=0
@@ -1678,17 +1666,17 @@ cmd_manage() {
         return 1
     fi
     
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local path="${NODEJS_ROOT}/${version}"
     if [[ ! -d "$path" && ! -L "$path" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")" 
         return 1
     fi
 
     if is_version_managed "$version"; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Version already managed", code: "VERSION_ALREADY_MANAGED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Version already managed", code: "VERSION_ALREADY_MANAGED"} * .' <<< "$__out")" 
         return 0
     fi
 
@@ -1697,12 +1685,14 @@ cmd_manage() {
     manage_version "$version" manage_version_result || manage_version_rc=$?
     [[ "$manage_version_rc" -eq 0 ]] || { print_result "$manage_version_result"; return "$manage_version_rc"; }
 
-    print_json_result "$( jq -n --argjson manage_version_result "$manage_version_result" --argjson default "$default_json_obj" '
-        $manage_version_result * {
+    print_json_result "$(jq \
+        --argjson manage_version_result "$manage_version_result" \
+        '$manage_version_result * {
             data: {
                 managed: true
             }
-        } * $default')"
+        } * .' <<< "$__out"
+    )"
 
 }
 
@@ -1715,17 +1705,17 @@ cmd_unmanage() {
         return 1
     fi
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     local path="${NODEJS_ROOT}/${version}"
     if [[ ! -d "$path" && ! -L "$path" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Version not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")" 
         return 1
     fi
 
     if ! is_version_managed "$version"; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Version not managed", code: "VERSION_NOT_MANAGED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Version not managed", code: "VERSION_NOT_MANAGED"} * .' <<< "$__out")" 
         return 0
     fi
 
@@ -1734,12 +1724,13 @@ cmd_unmanage() {
     unmanage_version "$version" unmanage_version_result || unmanage_version_rc=$?
     [[ "$unmanage_version_rc" -eq 0 ]] || { print_result "$unmanage_version_result"; return "$unmanage_version_rc"; }
 
-    print_json_result "$( jq -n --argjson unmanage_version_result "$unmanage_version_result" --argjson default "$default_json_obj" '
-        $unmanage_version_result * {
+    print_json_result "$(jq \
+        --argjson unmanage_version_result "$unmanage_version_result" \
+        '$unmanage_version_result * {
             data: {
                 managed: false
             }
-        } * $default'
+        } * .' <<< "$__out"
     )"
 }
 
@@ -1759,26 +1750,26 @@ cmd_pkg_add() {
         return 1
     fi
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" --arg package "$package" '{data: {version: $version, package: $package}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" --arg package "$package" '{data: {version: $version, package: $package}}')"
 
     if [[ "$package" =~ $NPM_PKG_FULL_REGEX ]] && [[ "${#BASH_REMATCH[1]}" -lt $NPM_PKG_MAX_LENGTH ]]; then
         local pkg_name="${BASH_REMATCH[1]}"
         local pkg_version="${BASH_REMATCH[4]:-}"
     else
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Invalid package name: \($default.data.package)", code: "INVALID_PACKAGE_NAME"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Invalid package name: \(.data.package)", code: "INVALID_PACKAGE_NAME"} * .' <<< "$__out")" 
         return 1
     fi
 
     local npm="${BIN_DIR}/npm${version}"
 
     if [[ "$version" != "default" ]] && [[ ! -d "${NODEJS_ROOT}/${version}" ]] && [[ ! -L "${NODEJS_ROOT}/${version}" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Node.js version \($default.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * $default')"
+        print_result "$(jq '{status: "error", changed: false, msg: "Node.js version \(.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")"
         return 1
     fi
     
     if [[ "$version" != "default" ]] && ! is_version_managed "$version"; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Cannot add package to unmanaged version: \($default.data.version)", code: "VERSION_NOT_MANAGED"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Cannot add package to unmanaged version: \(.data.version)", code: "VERSION_NOT_MANAGED"} * .' <<< "$__out")" 
         return 1
     fi
 
@@ -1790,7 +1781,7 @@ cmd_pkg_add() {
     log_debug "pkg_tracked=$pkg_tracked"
 
     if [[ "${FORCE:-false}" != "true" && "$pkg_installed" == "true" && "$pkg_tracked" == "true" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Package already installed, use --force to reinstall or update", code: "PACKAGE_ALREADY_INSTALLED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Package already installed, use --force to reinstall or update", code: "PACKAGE_ALREADY_INSTALLED"} * .' <<< "$__out")" 
         return 0
     fi
 
@@ -1823,20 +1814,20 @@ cmd_pkg_add() {
         for tmp_v in "${!versions_tracking_package[@]}"; do
             if [[ "$package" != "${versions_tracking_package[$tmp_v]}" ]]; then
                 log_warn "Version '$tmp_v' track this package with different target: ${versions_tracking_package[$tmp_v]}"
-                default_json_obj="$(jq --arg version "$tmp_v" --arg target "${versions_tracking_package[$tmp_v]}" '
+                __out="$(jq --arg version "$tmp_v" --arg target "${versions_tracking_package[$tmp_v]}" '
                     .data.conflicts += [{
                         version: $version,
                         target: $target
                     }]
-                ' <<< "$default_json_obj")"
+                ' <<< "$__out")"
             else
                 log_debug "Version '$tmp_v' track this package with same target: ${versions_tracking_package[$tmp_v]}"
             fi
         done
-        print_result "$(jq -n \
-            --argjson default "$default_json_obj" \
+        print_result "$(jq \
             --arg msg "Package '$pkg_name' is tracked by linked versions with a different target" \
-            '{status: "error", changed: false, msg: $msg, code: "PACKAGE_TARGET_MISMATCH_WITH_LINKED_VERSION"} * $default')" 
+            '{status: "error", changed: false, msg: $msg, code: "PACKAGE_TARGET_MISMATCH_WITH_LINKED_VERSION"} * .' <<< "$__out"
+        )" 
         return 1
     fi
 
@@ -1882,14 +1873,13 @@ cmd_pkg_add() {
             }'
         )"
     elif [[ "${FORCE:-false}" != "true" && "$pkg_installed" == "true" && "$pkg_tracked" == "false" ]]; then
-        print_result "$(jq -n \
-            --argjson default "$default_json_obj" \
+        print_result "$(jq \
             '{
                 status: "success",
-                changed: true, msg:
-                "Package already installed but not tracked, added to track list",
+                changed: true, 
+                msg: "Package already installed but not tracked, added to track list",
                 code: "PACKAGE_TRACKED"
-            } * $default'
+            } * .' <<< "$__out"
         )" 
     else
         print_json_result "$(jq -n \
@@ -1931,23 +1921,23 @@ cmd_pkg_del() {
         return 1
     fi
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" --arg package "$package" '{data: {version: $version, package: $package}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" --arg package "$package" '{data: {version: $version, package: $package}}')"
 
     if ! [[ "$package" =~ $NPM_PKG_NAME_REGEX ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Invalid package name: \($default.data.package)", code: "INVALID_PACKAGE_NAME"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Invalid package name: \(.data.package)", code: "INVALID_PACKAGE_NAME"} * .' <<< "$__out")" 
         return 1
     fi
 
     local npm="${BIN_DIR}/npm${version}"
 
     if [[ "$version" != "default" ]] && [[ ! -d "${NODEJS_ROOT}/${version}" ]] && [[ ! -L "${NODEJS_ROOT}/${version}" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Node.js version \($default.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * $default')"
+        print_result "$(jq '{status: "error", changed: false, msg: "Node.js version \(.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")"
         return 1
     fi
     
     if [[ "$version" != "default" ]] && ! is_version_managed "$version"; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Cannot delete package from unmanaged version: \($default.data.version)", code: "VERSION_NOT_MANAGED"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Cannot delete package from unmanaged version: \(.data.version)", code: "VERSION_NOT_MANAGED"} * .' <<< "$__out")" 
         return 1
     fi
 
@@ -1959,7 +1949,7 @@ cmd_pkg_del() {
     log_debug "pkg_tracked=$pkg_tracked"
 
     if [[ "$pkg_tracked" == "false" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "success", changed: false, msg: "Package not tracked by this version, nothing to do", code: "PACKAGE_NOT_TRACKED"} * $default')" 
+        print_result "$(jq '{status: "success", changed: false, msg: "Package not tracked by this version, nothing to do", code: "PACKAGE_NOT_TRACKED"} * .' <<< "$__out")" 
         return 0
     fi
 
@@ -1990,7 +1980,7 @@ cmd_pkg_del() {
             log_debug "Package '${package}' is required by linked versions: ${versions_using_package[*]}"
         else
             if ! run_cmd "$npm" uninstall -g "$package"; then
-                print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Package removal failed: \($default.data.package)", code: "PACKAGE_REMOVAL_FAILED"} * $default')" 
+                print_result "$(jq '{status: "error", changed: false, msg: "Package removal failed: \(.data.package)", code: "PACKAGE_REMOVAL_FAILED"} * .' <<< "$__out")" 
                 return 1
             fi
             log_info "Removed package '${package}' from version '${version}'"
@@ -2005,49 +1995,43 @@ cmd_pkg_del() {
     log_info "Removed package '$package' from ${PACKAGES_DIR}/${version}"
 
     if [[ "${#versions_using_package[@]}" -gt 0 ]]; then
-        __out="$(jq -n \
-            --argjson default "$default_json_obj" \
+        __out="$(jq \
             --arg v "${versions_using_package[*]}" \
             '{
                 status: "warning",
                 changed: true,
                 msg: "Package is required by versions (\($v)), only removed from config file",
                 code: "PACKAGE_UNTRACKED_STILL_REQUIRED"
-            } * $default'
+            } * .' <<< "$__out"
         )" 
     else
         if [[ "$version" == "default" ]]; then
-            __out="$(jq -n \
-                --argjson default "$default_json_obj" \
+            __out="$(jq \
                 '
                 {
                     status: "success",
                     changed: true,
                     code: "PACKAGE_REMOVED_FROM_DEFAULT",
-                    msg: "Successfully removed package from default: \($default.data.package)",
-                } * $default'
+                    msg: "Successfully removed package from default: \(.data.package)",
+                } * .' <<< "$__out"
             )" 
         elif [[ "$pkg_installed" == "true" ]]; then
-            __out="$(jq -n \
-                --argjson default "$default_json_obj" \
-                '
-                {
+            __out="$(jq \
+                '{
                     status: "success",
                     changed: true,
                     code: "PACKAGE_REMOVED",
-                    msg: "Successfully removed package: \($default.data.package)",
-                } * $default'
+                    msg: "Successfully removed package: \(.data.package)",
+                } * .' <<< "$__out"
             )" 
         else
-            __out="$(jq -n \
-                --argjson default "$default_json_obj" \
-                '
-                {
+            __out="$(jq \
+                '{
                     status: "success",
                     changed: true,
                     code: "PACKAGE_UNTRACKED",
-                    msg: "Package were not installed, untracked it: \($default.data.package)",
-                } * $default'
+                    msg: "Package were not installed, untracked it: \(.data.package)",
+                } * .' <<< "$__out"
             )" 
         fi
     fi
@@ -2068,16 +2052,16 @@ cmd_pkg_list() {
         return 1
     fi
 
-    local default_json_obj
-    default_json_obj="$(jq -n --arg version "$version" '{data: {version: $version}}')"
+    local __out
+    __out="$(jq -n --arg version "$version" '{data: {version: $version}}')"
 
     if [[ ! -d "${NODEJS_ROOT}/${version}" ]] && [[ ! -L "${NODEJS_ROOT}/${version}" ]] && [[ "$version" != "default" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Node.js version \($default.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * $default')"
+        print_result "$(jq '{status: "error", changed: false, msg: "Node.js version \(.data.version) not installed", code: "VERSION_NOT_INSTALLED"} * .' <<< "$__out")"
         return 1
     fi
     
     if ! is_version_managed "$version" && [[ "$version" != "default" ]]; then
-        print_result "$(jq -n --argjson default "$default_json_obj" '{status: "error", changed: false, msg: "Cannot list package of unmanaged version: \($default.data.version)", code: "VERSION_NOT_MANAGED"} * $default')" 
+        print_result "$(jq '{status: "error", changed: false, msg: "Cannot list package of unmanaged version: \(.data.version)", code: "VERSION_NOT_MANAGED"} * .' <<< "$__out")"
         return 1
     fi
 
