@@ -6,7 +6,7 @@ set -euo pipefail
 # Commonly installed requirements: util-linux (flock) coreutils (sort, mktemp, readlink, etc.) tar grep sed xz-utils bash>=4
 
 PROJECT_NAME=nodejs-system-manager
-VERSION=1.0.0
+VERSION=1.1.0
 
 declare -A DEFAULT_CONFIG=(
     [CONFIG_DIR]=/etc/nodejs-system-manager
