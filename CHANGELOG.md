@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.1] - 2026-09-19
+
+- Fix: missing logs outputs on Node.js index.json curl fail
+
 ## [1.1.0] - 2026-09-09
 
 - Add: Reading global configuration from file `CONFIG_DIR/config`
