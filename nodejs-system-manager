@@ -446,8 +446,8 @@ get_nodejs_index() {
         fi
     fi
 
-    CACHE_INDEX_JSON="$(curl -fsSL https://nodejs.org/dist/index.json)"
-    if [[ "$CACHE_INDEX_FILE_SKIPPED" != "true" ]]; then
+    CACHE_INDEX_JSON="$(run_cmd_stdout curl -fsSL https://nodejs.org/dist/index.json)"
+    if [[ "$CACHE_INDEX_FILE_SKIPPED" != "true" ]] && jq -e . >/dev/null 2>&1 <<<"$CACHE_INDEX_JSON"; then
         local tmp
         tmp="$(mktemp "${CACHE_INDEX_FILE}.XXXXXX")"
         printf '%s\n' "$CACHE_INDEX_JSON" > "$tmp"
@@ -726,6 +726,7 @@ update_version() {
     local latest_full
     if ! latest_full="$(resolve_version "$version")" || [[ -z "$latest_full" ]]; then
         __out="$(jq '{status: "error", changed: false, msg: "No published Node.js release match: \(.data.version)", code: "VERSION_NOT_AVAILABLE"} * .' <<< "$__out")"
+        log_json_msg "$__out"
         return 1
     fi
     log_info "Resolved version: $version -> $latest_full"
